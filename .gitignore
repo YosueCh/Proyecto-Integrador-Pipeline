@@ -4,3 +4,9 @@ coverage
 *.pem
 *.log
 data/
+
+# Reporte y capturas (contienen la IP y rutas locales; no van al repositorio)
+reporte/
+
+# Checklist de avance (solo local)
+CHECKLIST.md
