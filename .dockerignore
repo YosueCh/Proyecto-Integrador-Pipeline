@@ -1,0 +1,16 @@
+node_modules
+coverage
+tests
+reporte
+.github
+.git
+.gitignore
+.env
+.env.*
+*.pem
+*.log
+data
+Dockerfile
+.dockerignore
+README.md
+CHECKLIST.md

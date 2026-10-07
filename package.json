@@ -1,0 +1,46 @@
+{
+  "name": "biblioteca-api",
+  "version": "1.0.0",
+  "description": "API REST con SQLite para la practica de DevOps (Docker + AWS EC2)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "jest",
+    "lint": "node --check server.js && node --check src/app.js && node --check src/db.js && node --check src/routes.js && node --check src/repo.js && node --check src/socketServer.js",
+    "test:coverage": "jest --coverage"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.2.1"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.jest.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/socketServer.js"
+    ],
+    "coverageReporters": [
+      "text",
+      "text-summary",
+      "lcov"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 70,
+        "branches": 70,
+        "functions": 70,
+        "lines": 70
+      }
+    }
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "supertest": "^7.3.1"
+  }
+}
