@@ -20,15 +20,15 @@ Leyenda: [x] hecho | [ ] pendiente | (Cap) = tomar captura para el reporte
 ## B. Integracion continua - GitHub Actions (40%)
 - [x] B1. Repositorio en GitHub creado y codigo subido
 - [x] B2. .github/workflows/main.yml en push / pull_request a main
-- [ ] B3. El pipeline ejecuta pruebas y muestra resumen de cobertura en logs
-- [ ] B4. Login seguro en Docker Hub con Personal Access Token (escrito en main.yml, falta probar)
-- [ ] B5. Build y tags :latest y :${{ github.sha }}
-- [ ] B6. Imagen publicada en Docker Hub
-- [ ] (Cap) Pipeline en verde, logs de cobertura, imagen en Docker Hub
+- [x] B3. El pipeline ejecuta pruebas y muestra resumen de cobertura en logs
+- [x] B4. Login seguro en Docker Hub con Personal Access Token
+- [x] B5. Build y tags :latest y :${{ github.sha }}
+- [x] B6. Imagen publicada en Docker Hub
+- [x] (Cap) Pipeline en verde, logs de cobertura, imagen en Docker Hub
 
 ## C. Despliegue continuo - AWS EC2 (20%)
-- [ ] C1. Instancia EC2 Ubuntu Server con Docker instalado
-- [ ] C2. Security Group: puerto 22 (SSH) y puerto 80 (HTTP)
+- [x] C1. Instancia EC2 Ubuntu Server con Docker instalado
+- [x] C2. Security Group: puerto 22 (SSH) y puerto 80 (HTTP)
 - [ ] C3. GitHub Actions conectado por SSH con .pem
 - [ ] C4. Deploy: pull de Docker Hub, detener contenedor viejo, levantar nuevo en puerto 80
 - [ ] C5. Seguridad: sin contrasenas/IPs/tokens/llaves en el codigo (todo en GitHub Secrets)

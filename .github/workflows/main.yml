@@ -60,3 +60,37 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  # 3. Desplegar en AWS EC2 por SSH (solo si la imagen se publico bien)
+  deploy:
+    name: Despliegue en EC2
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preparar llave SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2.pem
+          chmod 600 ~/.ssh/ec2.pem
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Descargar imagen y reiniciar contenedor
+        run: |
+          ssh -i ~/.ssh/ec2.pem "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+            "IMAGE='${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest' bash -s" <<'REMOTE'
+          set -e
+          docker pull "$IMAGE"
+          docker rm -f biblioteca-api 2>/dev/null || true
+          docker run -d --name biblioteca-api --restart unless-stopped \
+            -p 80:80 -v biblioteca-data:/app/data "$IMAGE"
+          # Esperar a que la API responda antes de dar el despliegue por bueno
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost/api/health; then echo; echo "Despliegue OK"; exit 0; fi
+            sleep 2
+          done
+          echo "La API no respondio tras el despliegue"; docker logs biblioteca-api; exit 1
+          REMOTE
+
+      - name: Borrar llave
+        if: always()
+        run: rm -f ~/.ssh/ec2.pem
