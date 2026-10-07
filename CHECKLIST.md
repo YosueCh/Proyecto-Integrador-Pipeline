@@ -18,10 +18,10 @@ Leyenda: [x] hecho | [ ] pendiente | (Cap) = tomar captura para el reporte
   - [x] (Cap) docker build y docker run local
 
 ## B. Integracion continua - GitHub Actions (40%)
-- [ ] B1. Repositorio en GitHub creado y codigo subido
-- [ ] B2. .github/workflows/main.yml en push / pull_request a main
+- [x] B1. Repositorio en GitHub creado y codigo subido
+- [x] B2. .github/workflows/main.yml en push / pull_request a main
 - [ ] B3. El pipeline ejecuta pruebas y muestra resumen de cobertura en logs
-- [ ] B4. Login seguro en Docker Hub con Personal Access Token
+- [ ] B4. Login seguro en Docker Hub con Personal Access Token (escrito en main.yml, falta probar)
 - [ ] B5. Build y tags :latest y :${{ github.sha }}
 - [ ] B6. Imagen publicada en Docker Hub
 - [ ] (Cap) Pipeline en verde, logs de cobertura, imagen en Docker Hub
