@@ -7,8 +7,8 @@ function createApp({ db, backupDir }) {
 
   // 1. GET /  -> estado del servicio (tambien sirve como healthcheck)
   app.get('/', (req, res) => {
-    ok(res, [{ servicio: 'biblioteca-api v2', estado: 'ok', hora: new Date().toISOString() }]);
-
+    ok(res, [{ servicio: 'biblioteca-api', estado: 'ok', hora: new Date().toISOString() }]);
+  });
 
   app.use('/api', createRouter({ db, backupDir }));
 
