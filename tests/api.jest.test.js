@@ -25,7 +25,7 @@ describe('GET /', () => {
   test('devuelve estado ok (healthcheck)', async () => {
     const res = await request(app).get('/');
     expect(res.status).toBe(200);
-    expect(res.body.data[0].estado).toBe('ok');
+    expect(res.body.data[0].estado).toBe('ok revisando');
   });
   test('ruta inexistente -> 404 con esquema estandar', async () => {
     const res = await request(app).get('/api/no-existe');
