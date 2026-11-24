@@ -2,6 +2,12 @@
 #  - En local / CI se construye desde el codigo:  docker compose up -d --build
 #  - En EC2 se descargan las imagenes de Docker Hub: docker compose pull && docker compose up -d --no-build
 # Las credenciales vienen del archivo .env (no se versiona; ver .env.example).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "2"
+
 services:
   frontend:
     image: ${DOCKERHUB_USERNAME:-local}/biblioteca-frontend:${TAG:-latest}
@@ -12,6 +18,7 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    logging: *logging
 
   backend:
     image: ${DOCKERHUB_USERNAME:-local}/biblioteca-api:${TAG:-latest}
@@ -27,6 +34,7 @@ services:
     volumes:
       - biblioteca-data:/app/data
     restart: unless-stopped
+    logging: *logging
 
   openobserve:
     image: public.ecr.aws/zinclabs/openobserve:latest
@@ -35,12 +43,14 @@ services:
       ZO_ROOT_USER_EMAIL: ${OPENOBSERVE_USER:?defina OPENOBSERVE_USER en .env}
       ZO_ROOT_USER_PASSWORD: ${OPENOBSERVE_PASSWORD:?defina OPENOBSERVE_PASSWORD en .env}
       ZO_DATA_DIR: /data
+      ZO_COMPACT_DATA_RETENTION_DAYS: "3"   # el disco de la EC2 es pequeno: se conservan 3 dias de datos
       ZO_SSRF_ALLOWED_HOSTS: openobserve   # permite que las alertas escriban en este mismo servidor (webhook interno)
     ports:
       - "5080:5080"
     volumes:
       - openobserve-data:/data
     restart: unless-stopped
+    logging: *logging
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:${OTELCOL_VERSION:-0.165.0}
@@ -55,6 +65,7 @@ services:
     depends_on:
       - openobserve
     restart: unless-stopped
+    logging: *logging
 
 volumes:
   biblioteca-data:
