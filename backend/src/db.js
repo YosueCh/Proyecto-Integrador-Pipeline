@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
+const { hashPassword } = require('./auth');
+const { traceDb } = require('./tracedDb');
 
 // Modelo normalizado (3FN): cada dato vive en una sola tabla y las relaciones
 // se expresan con llaves foraneas, no repitiendo texto.
@@ -24,6 +26,14 @@ const SCHEMA = `
     autor_id     INTEGER NOT NULL REFERENCES autores(id)    ON DELETE RESTRICT,
     categoria_id INTEGER NOT NULL REFERENCES categorias(id) ON DELETE RESTRICT,
     UNIQUE (titulo, autor_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS usuarios (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT NOT NULL UNIQUE,
+    nombre        TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    rol           TEXT NOT NULL DEFAULT 'lector' CHECK (rol IN ('admin', 'lector'))
   );
 `;
 
@@ -49,6 +59,16 @@ function seed(db) {
   })();
 }
 
+// Usuario administrador inicial (solo si la tabla esta vacia, tambien en bases anteriores).
+// Las credenciales salen de variables de entorno; los valores por omision son para desarrollo.
+function seedAdmin(db) {
+  if (db.prepare('SELECT COUNT(*) AS n FROM usuarios').get().n > 0) return;
+  const username = process.env.ADMIN_USER || 'admin';
+  const password = process.env.ADMIN_PASSWORD || 'Admin123!';
+  db.prepare('INSERT INTO usuarios (username, nombre, password_hash, rol) VALUES (?, ?, ?, ?)')
+    .run(username, 'Administrador', hashPassword(password), 'admin');
+}
+
 // Abre (o crea) la base en <dataDir>/app.db. Los datos de ejemplo solo se
 // cargan cuando el archivo es nuevo, asi "vaciar" no se deshace al reiniciar.
 function openDatabase(dataDir) {
@@ -60,7 +80,8 @@ function openDatabase(dataDir) {
   db.pragma('foreign_keys = ON'); // SQLite no valida llaves foraneas si no se activa
   db.exec(SCHEMA);
   if (isNew) seed(db);
-  return db;
+  seedAdmin(db);
+  return traceDb(db);
 }
 
 module.exports = { openDatabase };

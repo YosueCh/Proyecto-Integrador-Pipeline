@@ -1,0 +1,29 @@
+:root { --azul: #1f4e8c; --gris: #f3f5f8; --borde: #d5dbe3; --rojo: #b3261e; --verde: #1b7a3d; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; background: var(--gris); color: #1c2430; }
+[hidden] { display: none !important; }
+.tarjeta { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 28px 32px; }
+.centrada { max-width: 380px; margin: 12vh auto 0; }
+h1 { margin: 0 0 4px; color: var(--azul); }
+.sub { margin: 0 0 20px; color: #5a6675; }
+label { display: block; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+input, select { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 6px; font: inherit; }
+button { padding: 8px 16px; border: 0; border-radius: 6px; background: var(--azul); color: #fff; font: inherit; cursor: pointer; }
+button.secundario { background: #e4e9f0; color: #1c2430; }
+button.peligro { background: var(--rojo); }
+button.chico { padding: 4px 10px; font-size: 13px; }
+.error { color: var(--rojo); margin: 0 0 12px; font-size: 14px; }
+.barra { display: flex; align-items: center; gap: 20px; padding: 10px 24px; background: #fff; border-bottom: 1px solid var(--borde); }
+.barra nav { display: flex; gap: 6px; flex: 1; }
+.barra nav button { background: transparent; color: #1c2430; }
+.barra nav button.activa { background: var(--azul); color: #fff; }
+.sesion { color: #5a6675; font-size: 14px; }
+.contenido { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+.aviso { padding: 10px 14px; border-radius: 6px; background: #e3f4e8; color: var(--verde); }
+.aviso.fallo { background: #fbe4e2; color: var(--rojo); }
+.formulario { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+.formulario label { margin: 0; flex: 1 1 160px; }
+table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--borde); }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--borde); font-size: 14px; }
+th { background: #eaeff5; }
+td.acciones { white-space: nowrap; text-align: right; }

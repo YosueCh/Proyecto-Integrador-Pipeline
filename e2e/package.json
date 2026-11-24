@@ -1,0 +1,15 @@
+{
+  "name": "biblioteca-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pruebas end-to-end (API y web) con Playwright",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=ui-chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.0.0"
+  }
+}

@@ -1,0 +1,62 @@
+# Pila completa: frontend (nginx) + backend (API) + OpenObserve + OTel Collector.
+#  - En local / CI se construye desde el codigo:  docker compose up -d --build
+#  - En EC2 se descargan las imagenes de Docker Hub: docker compose pull && docker compose up -d --no-build
+# Las credenciales vienen del archivo .env (no se versiona; ver .env.example).
+services:
+  frontend:
+    image: ${DOCKERHUB_USERNAME:-local}/biblioteca-frontend:${TAG:-latest}
+    build: ./frontend
+    container_name: biblioteca-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    image: ${DOCKERHUB_USERNAME:-local}/biblioteca-api:${TAG:-latest}
+    build: ./backend
+    container_name: biblioteca-api
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET en .env}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD en .env}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT-http://otel-collector:4318}
+      OTEL_SERVICE_NAME: biblioteca-api
+      APP_VERSION: ${TAG:-latest}
+    volumes:
+      - biblioteca-data:/app/data
+    restart: unless-stopped
+
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    container_name: openobserve
+    environment:
+      ZO_ROOT_USER_EMAIL: ${OPENOBSERVE_USER:?defina OPENOBSERVE_USER en .env}
+      ZO_ROOT_USER_PASSWORD: ${OPENOBSERVE_PASSWORD:?defina OPENOBSERVE_PASSWORD en .env}
+      ZO_DATA_DIR: /data
+      ZO_SSRF_ALLOWED_HOSTS: openobserve   # permite que las alertas escriban en este mismo servidor (webhook interno)
+    ports:
+      - "5080:5080"
+    volumes:
+      - openobserve-data:/data
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:${OTELCOL_VERSION:-0.165.0}
+    container_name: otel-collector
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      OPENOBSERVE_USER: ${OPENOBSERVE_USER}
+      OPENOBSERVE_PASSWORD: ${OPENOBSERVE_PASSWORD}
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+      - /:/hostfs:ro
+    depends_on:
+      - openobserve
+    restart: unless-stopped
+
+volumes:
+  biblioteca-data:
+    name: biblioteca-data   # mismo volumen que el despliegue anterior: conserva la base de datos
+  openobserve-data:

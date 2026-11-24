@@ -2,6 +2,7 @@ const path = require('node:path');
 const { openDatabase } = require('./src/db');
 const { createApp } = require('./src/app');
 const { createSocketServer } = require('./src/socketServer');
+const logger = require('./src/logger');
 
 // Configuracion por variables de entorno (asi Docker puede cambiarlas sin tocar codigo)
 const port = Number(process.env.PORT) || 3000;
@@ -12,7 +13,7 @@ const db = openDatabase(dataDir);
 const app = createApp({ db, backupDir: path.join(dataDir, 'backups') });
 
 const server = app.listen(port, () => {
-  console.log(`API escuchando en http://localhost:${port}  (datos en ${dataDir})`);
+  logger.info('API iniciada', { port, dataDir });
 });
 
 // Mismo contenedor, mismo proceso: un segundo servidor con el protocolo

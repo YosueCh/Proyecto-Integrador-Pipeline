@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biblioteca</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Pantalla de acceso -->
+  <main id="vista-login" class="tarjeta centrada" hidden>
+    <h1>Biblioteca</h1>
+    <p class="sub">Inicia sesión para administrar el catálogo</p>
+    <form id="form-login" novalidate>
+      <label>Usuario <input id="login-usuario" name="username" autocomplete="username"></label>
+      <label>Contraseña <input id="login-clave" name="password" type="password" autocomplete="current-password"></label>
+      <p id="login-error" class="error" role="alert" hidden></p>
+      <button type="submit" id="login-enviar">Entrar</button>
+    </form>
+  </main>
+
+  <!-- Aplicación -->
+  <div id="vista-app" hidden>
+    <header class="barra">
+      <strong>Biblioteca</strong>
+      <nav id="pestanas">
+        <button data-tab="libros" class="activa">Libros</button>
+        <button data-tab="autores">Autores</button>
+        <button data-tab="categorias">Categorías</button>
+        <button data-tab="usuarios" id="tab-usuarios" hidden>Usuarios</button>
+      </nav>
+      <span id="sesion-usuario" class="sesion"></span>
+      <button id="salir" class="secundario">Salir</button>
+    </header>
+
+    <main class="contenido">
+      <p id="mensaje" class="aviso" role="status" hidden></p>
+
+      <!-- Libros -->
+      <section id="tab-libros" data-seccion="libros">
+        <h2>Libros</h2>
+        <form id="form-libros" class="formulario" novalidate>
+          <input type="hidden" name="id">
+          <label>Título <input name="titulo" data-testid="libro-titulo"></label>
+          <label>Año <input name="anio" type="number"></label>
+          <label>Autor <select name="autor_id"></select></label>
+          <label>Categoría <select name="categoria_id"></select></label>
+          <button type="submit">Guardar</button>
+          <button type="button" class="secundario cancelar">Cancelar</button>
+        </form>
+        <table><thead><tr><th>ID</th><th>Título</th><th>Año</th><th>Autor</th><th>Categoría</th><th></th></tr></thead><tbody id="tabla-libros"></tbody></table>
+      </section>
+
+      <!-- Autores -->
+      <section id="tab-autores" data-seccion="autores" hidden>
+        <h2>Autores</h2>
+        <form id="form-autores" class="formulario" novalidate>
+          <input type="hidden" name="id">
+          <label>Nombre <input name="nombre"></label>
+          <label>Nacionalidad <input name="nacionalidad"></label>
+          <button type="submit">Guardar</button>
+          <button type="button" class="secundario cancelar">Cancelar</button>
+        </form>
+        <table><thead><tr><th>ID</th><th>Nombre</th><th>Nacionalidad</th><th></th></tr></thead><tbody id="tabla-autores"></tbody></table>
+      </section>
+
+      <!-- Categorías -->
+      <section id="tab-categorias" data-seccion="categorias" hidden>
+        <h2>Categorías</h2>
+        <form id="form-categorias" class="formulario" novalidate>
+          <input type="hidden" name="id">
+          <label>Nombre <input name="nombre"></label>
+          <button type="submit">Guardar</button>
+          <button type="button" class="secundario cancelar">Cancelar</button>
+        </form>
+        <table><thead><tr><th>ID</th><th>Nombre</th><th></th></tr></thead><tbody id="tabla-categorias"></tbody></table>
+      </section>
+
+      <!-- Usuarios (solo admin) -->
+      <section id="tab-usuarios-sec" data-seccion="usuarios" hidden>
+        <h2>Usuarios</h2>
+        <form id="form-usuarios" class="formulario" novalidate>
+          <input type="hidden" name="id">
+          <label>Usuario <input name="username"></label>
+          <label>Nombre <input name="nombre"></label>
+          <label>Contraseña <input name="password" type="password" placeholder="(sin cambios al editar)"></label>
+          <label>Rol <select name="rol"><option value="lector">lector</option><option value="admin">admin</option></select></label>
+          <button type="submit">Guardar</button>
+          <button type="button" class="secundario cancelar">Cancelar</button>
+        </form>
+        <table><thead><tr><th>ID</th><th>Usuario</th><th>Nombre</th><th>Rol</th><th></th></tr></thead><tbody id="tabla-usuarios"></tbody></table>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

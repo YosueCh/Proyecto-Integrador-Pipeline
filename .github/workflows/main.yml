@@ -7,66 +7,141 @@ on:
     branches: [main]
 
 env:
-  IMAGE_NAME: biblioteca-api
+  BACKEND_IMAGE: biblioteca-api
+  FRONTEND_IMAGE: biblioteca-frontend
 
 jobs:
-  # 1. Pruebas + cobertura (falla si la cobertura baja del 70%)
-  test:
-    name: Pruebas y cobertura
+  # 1. Pruebas unitarias y de API del backend (Jest + Supertest, cobertura minima 70 %)
+  unitarias:
+    name: Pruebas unitarias (Jest)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Ejecutar pruebas con cobertura
-        run: npm run test:coverage
-
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run test:coverage
       - name: Subir reporte de cobertura
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: coverage/
+          path: backend/coverage/
 
-  # 2. Construir y publicar la imagen en Docker Hub (solo en push a main)
-  docker:
-    name: Imagen Docker
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  # 2. Pruebas de extremo a extremo (Playwright: backend por HTTP y frontend en el navegador)
+  #    contra la pila real levantada con Docker Compose. Si fallan, no hay despliegue.
+  e2e:
+    name: Pruebas E2E (Playwright)
+    needs: unitarias
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Levantar frontend y backend
+        env:
+          FRONTEND_PORT: 8080
+        run: |
+          cat > .env <<ENV
+          JWT_SECRET=ci-${{ github.run_id }}-secret
+          ADMIN_PASSWORD=Admin123!
+          OPENOBSERVE_USER=ci@example.com
+          OPENOBSERVE_PASSWORD=Ci#Unused2026
+          OTEL_EXPORTER_OTLP_ENDPOINT=
+          FRONTEND_PORT=8080
+          ENV
+          docker compose up -d --build frontend backend
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/api/health && break
+            sleep 2
+          done
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Instalar Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox
+
+      - name: Ejecutar pruebas E2E
+        working-directory: e2e
+        env:
+          BASE_URL: http://127.0.0.1:8080
+          ADMIN_PASSWORD: Admin123!
+        run: npx playwright test
+
+      - name: Subir reporte de Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 14
+
+      - name: Registrar resultado de las pruebas en OpenObserve
+        if: always()
+        env:
+          EVENTO: pruebas
+          RESULTADO: ${{ job.status == 'success' && 'exito' || 'fallo' }}
+          RESULTADOS_JSON: e2e/test-results/results.json
+          COMMIT_MENSAJE: ${{ github.event.head_commit.message }}
+          OPENOBSERVE_URL: ${{ secrets.OPENOBSERVE_URL }}
+          OPENOBSERVE_USER: ${{ secrets.OPENOBSERVE_USER }}
+          OPENOBSERVE_PASSWORD: ${{ secrets.OPENOBSERVE_PASSWORD }}
+        run: node scripts/notificar-openobserve.mjs
+
+  # 3. Construir y publicar las imagenes (solo en push a main y con las pruebas en verde)
+  imagenes:
+    name: Imagenes Docker
+    needs: e2e
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
       - name: Login en Docker Hub (Personal Access Token)
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Construir y publicar (:latest y :sha del commit)
+      - name: Backend (:latest y :sha)
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: backend
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+      - name: Frontend (:latest y :sha)
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
 
-  # 3. Desplegar en AWS EC2 por SSH (solo si la imagen se publico bien)
-  deploy:
+  # 4. Desplegar en AWS EC2 por SSH. Depende de "imagenes", que depende de "e2e":
+  #    si Playwright falla, este job ni siquiera arranca y no se abre ninguna conexion SSH.
+  desplegar:
     name: Despliegue en EC2
-    needs: docker
+    needs: imagenes
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Preparar llave SSH
         run: |
           install -m 700 -d ~/.ssh
@@ -74,22 +149,62 @@ jobs:
           chmod 600 ~/.ssh/ec2.pem
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Descargar imagen y reiniciar contenedor
+      - name: Copiar compose y configuracion del colector
+        run: |
+          SSH="ssh -i ~/.ssh/ec2.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
+          $SSH "mkdir -p ~/biblioteca/observability"
+          scp -i ~/.ssh/ec2.pem docker-compose.yml ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/biblioteca/
+          scp -i ~/.ssh/ec2.pem observability/otel-collector.yaml ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/biblioteca/observability/
+
+      - name: Actualizar contenedores
         run: |
           ssh -i ~/.ssh/ec2.pem "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
-            "IMAGE='${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest' bash -s" <<'REMOTE'
+            "TAG='${{ github.sha }}' DOCKERHUB_USERNAME='${{ secrets.DOCKERHUB_USERNAME }}' \
+             JWT_SECRET='${{ secrets.JWT_SECRET }}' ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}' \
+             OPENOBSERVE_USER='${{ secrets.OPENOBSERVE_USER }}' OPENOBSERVE_PASSWORD='${{ secrets.OPENOBSERVE_PASSWORD }}' \
+             bash -s" <<'REMOTE'
           set -e
-          docker pull "$IMAGE"
+          cd ~/biblioteca
+          # El archivo .env solo vive en el servidor (permisos 600), nunca en el repositorio
+          umask 077
+          cat > .env <<ENV
+          DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME
+          TAG=$TAG
+          JWT_SECRET=$JWT_SECRET
+          ADMIN_PASSWORD=$ADMIN_PASSWORD
+          OPENOBSERVE_USER=$OPENOBSERVE_USER
+          OPENOBSERVE_PASSWORD=$OPENOBSERVE_PASSWORD
+          FRONTEND_PORT=80
+          ENV
+          # Contenedor de la version anterior (creado con "docker run") que ocupa el puerto 80
           docker rm -f biblioteca-api 2>/dev/null || true
-          docker run -d --name biblioteca-api --restart unless-stopped \
-            -p 80:80 -v biblioteca-data:/app/data "$IMAGE"
-          # Esperar a que la API responda antes de dar el despliegue por bueno
-          for i in $(seq 1 15); do
+          docker compose pull
+          docker compose up -d --no-build --remove-orphans
+          for i in $(seq 1 30); do
             if curl -fsS http://localhost/api/health; then echo; echo "Despliegue OK"; exit 0; fi
             sleep 2
           done
-          echo "La API no respondio tras el despliegue"; docker logs biblioteca-api; exit 1
+          echo "La API no respondio tras el despliegue"; docker compose logs --tail 50; exit 1
           REMOTE
+
+      - name: Crear/actualizar dashboard y alertas en OpenObserve
+        continue-on-error: true
+        env:
+          OPENOBSERVE_URL: ${{ secrets.OPENOBSERVE_URL }}
+          OPENOBSERVE_USER: ${{ secrets.OPENOBSERVE_USER }}
+          OPENOBSERVE_PASSWORD: ${{ secrets.OPENOBSERVE_PASSWORD }}
+        run: node observability/aprovisionar.mjs
+
+      - name: Registrar despliegue en OpenObserve
+        if: always()
+        env:
+          EVENTO: despliegue
+          RESULTADO: ${{ job.status == 'success' && 'exito' || 'fallo' }}
+          COMMIT_MENSAJE: ${{ github.event.head_commit.message }}
+          OPENOBSERVE_URL: ${{ secrets.OPENOBSERVE_URL }}
+          OPENOBSERVE_USER: ${{ secrets.OPENOBSERVE_USER }}
+          OPENOBSERVE_PASSWORD: ${{ secrets.OPENOBSERVE_PASSWORD }}
+        run: node scripts/notificar-openobserve.mjs
 
       - name: Borrar llave
         if: always()

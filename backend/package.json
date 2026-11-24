@@ -1,0 +1,58 @@
+{
+  "name": "biblioteca-api",
+  "version": "1.0.0",
+  "description": "API REST con SQLite para la practica de DevOps (Docker + AWS EC2)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --require ./src/telemetry.js server.js",
+    "test": "jest",
+    "lint": "node --check server.js && node --check src/app.js && node --check src/db.js && node --check src/routes.js && node --check src/repo.js && node --check src/socketServer.js && node --check src/auth.js && node --check src/usuarios.js && node --check src/telemetry.js && node --check src/logger.js && node --check src/tracedDb.js",
+    "test:coverage": "jest --coverage"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/api-logs": "^0.223.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.301.2",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.301.2",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.301.2",
+    "@opentelemetry/instrumentation-express": "^0.73.0",
+    "@opentelemetry/instrumentation-http": "^0.301.2",
+    "@opentelemetry/resources": "^3.1.1",
+    "@opentelemetry/sdk-logs": "^3.1.1",
+    "@opentelemetry/sdk-metrics": "^3.1.1",
+    "@opentelemetry/sdk-node": "^0.301.2",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.2.1"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.jest.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/socketServer.js",
+      "!src/telemetry.js"
+    ],
+    "coverageReporters": [
+      "text",
+      "text-summary",
+      "lcov"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 70,
+        "branches": 70,
+        "functions": 70,
+        "lines": 70
+      }
+    }
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "supertest": "^7.3.1"
+  }
+}

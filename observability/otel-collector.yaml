@@ -1,0 +1,67 @@
+# OpenTelemetry Collector: recibe trazas, metricas y logs de la API (OTLP) y mide los recursos del
+# servidor (CPU, RAM, red, disco, temperatura); todo se envia a OpenObserve.
+extensions:
+  basicauth/openobserve:
+    client_auth:
+      username: ${env:OPENOBSERVE_USER}
+      password: ${env:OPENOBSERVE_PASSWORD}
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+  # Metricas del servidor: el contenedor monta "/" del host en /hostfs (solo lectura)
+  host_metrics:
+    collection_interval: 15s
+    root_path: /hostfs
+    scrapers:
+      cpu:
+      load:
+      memory:
+      paging:
+      network:
+      disk:
+      filesystem:
+        exclude_mount_points:
+          mount_points: [/dev/*, /proc/*, /sys/*, /run/*, /var/lib/docker/*, /hostfs/var/lib/docker/*]
+          match_type: regexp
+        exclude_fs_types:
+          fs_types: [tmpfs, devtmpfs, overlay, squashfs, proc, sysfs, cgroup2]
+          match_type: strict
+      processes:
+
+processors:
+  batch:
+    timeout: 5s
+  resource_detection:
+    detectors: [env, system]
+    system:
+      hostname_sources: [os]
+
+exporters:
+  otlp_http/openobserve:
+    endpoint: http://openobserve:5080/api/default
+    auth:
+      authenticator: basicauth/openobserve
+    headers:
+      stream-name: default
+
+service:
+  extensions: [basicauth/openobserve]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/openobserve]
+    metrics:
+      receivers: [otlp, host_metrics]
+      processors: [resource_detection, batch]
+      exporters: [otlp_http/openobserve]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/openobserve]

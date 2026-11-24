@@ -1,98 +1,93 @@
-# Biblioteca API - Proyecto Integrador CI/CD
+# Biblioteca – Proyecto Integrador (Parcial 2): CI/CD, pruebas E2E y observabilidad
 
-API REST en Node.js (Express) con SQLite, con pruebas automatizadas (Jest + Supertest),
-empaquetada en Docker y desplegada automaticamente en AWS EC2 mediante GitHub Actions.
+Aplicación web (frontend + API REST) con login, desplegada en AWS EC2 mediante GitHub Actions
+**solo si pasan las pruebas** (Jest + Playwright), y monitoreada con OpenTelemetry y OpenObserve.
 
 ## Arquitectura
 
 ```
- git push (main)
-      |
-      v
-+---------------------------- GitHub Actions (.github/workflows/main.yml) ----------------------------+
-|  1. test    : npm ci -> jest --coverage (falla si la cobertura es < 70%)                            |
-|  2. docker  : build de la imagen -> push a Docker Hub (:latest y :<sha del commit>)                 |
-|  3. deploy  : SSH a la EC2 -> docker pull -> docker rm -f -> docker run -p 80:80 -> /api/health     |
-+----------------------------------------------------------------------------------------------------+
-      |                                   |
-      v                                   v
-  Docker Hub  <--------- pull ---------  AWS EC2 (Ubuntu + Docker)  ->  http://<IP_EC2>/api/...
+git push (main)
+   │
+   ▼
+GitHub Actions ── unitarias (Jest, cobertura ≥ 70 %)
+   │                 └─▶ e2e (Playwright: API por HTTP + frontend en Chromium y Firefox)
+   │                          ├─ falla ─▶ registra "fallo" en OpenObserve y NO abre SSH a EC2
+   │                          └─ pasa  ─▶ imágenes a Docker Hub ─▶ SSH a EC2 ─▶ docker compose up
+   │                                                                              └─▶ registra "despliegue" en OpenObserve
+   ▼
+AWS EC2 (docker compose)
+ ┌───────────┐   /api   ┌───────────┐  OTLP   ┌────────────────┐  OTLP/HTTP  ┌─────────────┐
+ │ frontend  │─────────▶│ backend   │────────▶│ otel-collector │────────────▶│ OpenObserve │
+ │ nginx :80 │          │ Express   │ logs    │ + hostmetrics  │             │   :5080     │
+ └───────────┘          │ + SQLite  │ métricas│ (CPU/RAM/red)  │             └─────────────┘
+                        └───────────┘ trazas  └────────────────┘
 ```
+
+| Contenedor | Imagen | Función |
+|---|---|---|
+| `frontend` | `<usuario>/biblioteca-frontend` | nginx: sirve la web y reenvía `/api` al backend |
+| `backend` | `<usuario>/biblioteca-api` | API REST (Node + SQLite), autenticación JWT, instrumentada con OpenTelemetry |
+| `openobserve` | `public.ecr.aws/zinclabs/openobserve` | Logs, métricas, trazas, dashboards y alertas |
+| `otel-collector` | `otel/opentelemetry-collector-contrib` | Recibe OTLP de la API y mide el servidor (hostmetrics) |
 
 ## Estructura
 
-| Archivo | Para que sirve |
+| Ruta | Contenido |
 |---|---|
-| `server.js` | Punto de entrada: configuracion por variables de entorno, BD y servidores |
-| `src/app.js` | App Express, ruta `/`, 404 y manejador central de errores |
-| `src/routes.js` | Endpoints de la API |
-| `src/repo.js` | Logica de acceso a datos y validaciones (compartida con el socket TCP) |
-| `src/db.js` | SQLite: esquema normalizado y datos de ejemplo |
-| `src/socketServer.js` | Servidor TCP (puerto 6061), protocolo `{insert:...}` / `{get:...}` |
-| `tests/` | Pruebas Jest + Supertest (81 pruebas) |
-| `Dockerfile` / `.dockerignore` | Imagen (Node 22 slim, usuario sin privilegios, HEALTHCHECK) |
-| `.github/workflows/main.yml` | Pipeline de CI/CD |
+| `backend/` | API, pruebas Jest (104), `Dockerfile` |
+| `frontend/` | Web estática (login, CRUD de libros, autores, categorías y usuarios), nginx y `Dockerfile` |
+| `e2e/` | Pruebas Playwright: `api.backend.spec.ts` (15) y `ui.frontend.spec.ts` (12 × Chromium y Firefox) |
+| `observability/` | Configuración del colector y `aprovisionar.mjs` (dashboard y alertas de OpenObserve) |
+| `scripts/notificar-openobserve.mjs` | Envía a OpenObserve el resultado de pruebas y despliegues (API HTTP/JSON) |
+| `docker-compose.yml` | Pila completa |
+| `.github/workflows/main.yml` | Pipeline |
+
+## Uso local
+
+```bash
+cp .env.example .env            # y cambie los valores
+docker compose up -d --build    # frontend en http://localhost:8088 (FRONTEND_PORT), OpenObserve en :5080
+cd backend && npm ci && npm run test:coverage
+cd ../e2e && npm ci && npx playwright install chromium firefox && BASE_URL=http://127.0.0.1:8088 npx playwright test
+# dashboard y alertas en OpenObserve:
+OPENOBSERVE_USER=... OPENOBSERVE_PASSWORD=... node observability/aprovisionar.mjs
+```
 
 ## Endpoints
 
-Todas las respuestas usan el esquema `{ "statusCode": 200, "data": [] }`; en errores
-`data` es `[]` y se agrega `message`.
+Respuestas `{ "statusCode": 200, "data": [] }`. Todo `/api` exige `Authorization: Bearer <token>` salvo `/api/health` y `/api/auth/login`.
 
-| Metodo | Ruta | Descripcion |
+| Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/` | Estado del servicio |
-| GET | `/api/health` | Healthcheck (usado por Docker y por el despliegue) |
-| GET | `/api/categorias` | Lista categorias |
-| POST | `/api/categorias` | Crea categoria `{ "nombre": "Historia" }` |
-| PUT | `/api/categorias/:id` | Actualiza categoria |
-| DELETE | `/api/categorias/:id` | Elimina categoria (409 si tiene libros) |
-| GET | `/api/autores` | Lista autores |
-| POST | `/api/autores` | Crea autor `{ "nombre", "nacionalidad" }` |
-| PUT | `/api/autores/:id` | Actualiza autor |
-| GET | `/api/libros` | Lista libros (filtro opcional `?categoria_id=1`) |
-| POST | `/api/libros` | Crea libro `{ "titulo", "anio", "autor_id", "categoria_id" }` |
-| PUT | `/api/libros/:id` | Actualiza libro |
-| DELETE | `/api/libros/:id` | Elimina libro |
-| POST | `/api/backup` | Copia consistente de la BD |
-| DELETE | `/api/vaciar` | Borra todos los registros |
+| POST | `/api/auth/login` | `{username, password}` → token JWT |
+| GET | `/api/health` | Healthcheck (público) |
+| GET/POST/PUT/DELETE | `/api/libros`, `/api/categorias` | CRUD (autores: sin DELETE) |
+| GET/POST/PUT | `/api/autores` | |
+| GET/POST/PUT/DELETE | `/api/usuarios` | Solo rol `admin` |
+| POST / DELETE | `/api/backup`, `/api/vaciar` | Solo rol `admin` |
 
-## Comandos locales
-
-```bash
-npm ci                    # instalar dependencias
-npm start                 # API en http://localhost:3000
-npm test                  # pruebas
-npm run test:coverage     # pruebas + cobertura (umbral minimo 70%)
-
-docker build -t biblioteca-api:local .
-docker run -d --name api-local -p 8081:80 biblioteca-api:local
-curl http://localhost:8081/api/health
-docker rm -f api-local
-```
-
-## Configuracion del pipeline
-
-### 1. GitHub Secrets (Settings > Secrets and variables > Actions)
+## Secrets de GitHub (Settings → Secrets and variables → Actions)
 
 | Secret | Contenido |
 |---|---|
-| `DOCKERHUB_USERNAME` | Usuario de Docker Hub |
-| `DOCKERHUB_TOKEN` | Personal Access Token de Docker Hub (Read & Write) |
-| `EC2_HOST` | IP publica o DNS de la instancia EC2 |
-| `EC2_USER` | Usuario SSH (`ubuntu`) |
-| `EC2_SSH_KEY` | Contenido completo del archivo `.pem` |
+| `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` | Docker Hub (token Read & Write) |
+| `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY` | Acceso SSH a la instancia (llave `.pem` completa) |
+| `JWT_SECRET` | Cadena larga y aleatoria para firmar tokens |
+| `ADMIN_PASSWORD` | Contraseña del usuario `admin` inicial |
+| `OPENOBSERVE_URL` | `http://<IP_EC2>:5080` |
+| `OPENOBSERVE_USER`, `OPENOBSERVE_PASSWORD` | Usuario raíz de OpenObserve (la contraseña exige mayúscula, minúscula, dígito y símbolo, 8+ caracteres) |
 
-Ningun dato sensible vive en el repositorio; `.gitignore` excluye `.env` y `*.pem`.
+Ningún secreto vive en el repositorio; `.env` y `*.pem` están en `.gitignore`.
 
-### 2. Servidor EC2
+## Servidor EC2
 
-- Ubuntu Server con Docker instalado y el usuario `ubuntu` en el grupo `docker`.
-- Security Group con entrada TCP **22** (SSH) y **80** (HTTP).
-- El despliegue crea el contenedor `biblioteca-api` con `--restart unless-stopped` y un
-  volumen `biblioteca-data` para conservar la base de datos entre versiones.
+Ubuntu con Docker y el plugin Compose. Security Group: **22** (SSH), **80** (web) y **5080** (OpenObserve, idealmente restringido a su IP; el pipeline también lo usa para registrar eventos). OpenObserve y el colector necesitan ≥ 2 GB de RAM (t3.small o mayor).
 
-### 3. Flujo de despliegue
+## Observabilidad
 
-Cada `git push` a `main` ejecuta pruebas, publica la imagen en Docker Hub y reemplaza el
-contenedor en la EC2. El job termina en verde solo si `/api/health` responde tras el despliegue.
-Los `pull_request` a `main` solo ejecutan las pruebas.
+- **Logs**: JSON estructurado (nivel, método, ruta, código, duración, `trace_id`) → flujo `default` (logs).
+- **Métricas** por endpoint: `http_request_duration_ms`, `http_requests_total`, `http_errors_total` (método, ruta, `status_code`).
+- **Trazas**: petición HTTP → middlewares de Express → consultas SQLite; el navegador envía `traceparent`.
+- **Infraestructura** (hostmetrics): CPU, RAM, red, disco, carga. **Temperatura**: la API lee `/sys/class/thermal`; las instancias virtualizadas como EC2 normalmente no tienen sensores, por lo que ese panel puede quedar sin datos.
+- **Pipeline CI/CD**: flujo `ci_pipeline` (evento, resultado, commit, rama, usuario).
+- **Dashboard** "Biblioteca - Observabilidad" y **alertas** (errores 5xx y pipeline fallido) creados por `observability/aprovisionar.mjs`.
