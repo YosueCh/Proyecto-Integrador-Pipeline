@@ -178,6 +178,8 @@ jobs:
           ENV
           # Contenedor de la version anterior (creado con "docker run") que ocupa el puerto 80
           docker rm -f biblioteca-api 2>/dev/null || true
+          # El disco es pequeno: se borran las imagenes de versiones anteriores que ya no usa ningun contenedor
+          docker image prune -af
           docker compose pull
           docker compose up -d --no-build --remove-orphans
           for i in $(seq 1 30); do
