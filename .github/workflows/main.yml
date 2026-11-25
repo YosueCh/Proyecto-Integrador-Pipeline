@@ -2,7 +2,7 @@ name: CI/CD
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'demo/**']   # las ramas demo/** solo ejecutan pruebas; imagenes y despliegue exigen main
   pull_request:
     branches: [main]
 
