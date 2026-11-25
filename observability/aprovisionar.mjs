@@ -118,7 +118,7 @@ const paneles = [
   promql('CPU del servidor (%)', '100 * (1 - sum(rate(system_cpu_time{state="idle"}[1m])) / sum(rate(system_cpu_time[1m])))', { x: 0, y: 37, w: 24, h: 9, unidad: 'percent' }),
   promql('Memoria RAM usada (%)', '100 * sum(system_memory_usage{state="used"}) / sum(system_memory_usage)', { x: 24, y: 37, w: 24, h: 9, unidad: 'percent' }),
   promql('Ancho de banda de red (bytes/s)', 'sum by (direction) (rate(system_network_io[1m]))', { x: 0, y: 46, w: 24, h: 9, unidad: 'bytes' }),
-  promql('Temperatura de los sensores (°C)', 'host_temperature_celsius', { x: 24, y: 46, w: 24, h: 9, unidad: 'default' }),
+  promql('Temperatura estimada (°C)', 'host_temperature_celsius', { x: 24, y: 46, w: 24, h: 9, unidad: 'default' }),
 ];
 
 const dashboard = {

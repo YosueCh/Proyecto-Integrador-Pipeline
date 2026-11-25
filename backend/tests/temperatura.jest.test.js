@@ -24,3 +24,16 @@ describe('leerZonas (temperatura del servidor)', () => {
     expect(leerZonas(dir)).toEqual([]);
   });
 });
+
+describe('temperaturaSimulada', () => {
+  const { temperaturaSimulada } = require('../src/temperatura');
+  test('en reposo ronda los 38 C y con CPU al maximo llega a 78 C', () => {
+    expect(temperaturaSimulada(0)).toBe(38);
+    expect(temperaturaSimulada(1)).toBe(78);
+  });
+  test('es proporcional a la carga y acota valores fuera de rango', () => {
+    expect(temperaturaSimulada(0.5)).toBe(58);
+    expect(temperaturaSimulada(-3)).toBe(38);
+    expect(temperaturaSimulada(9)).toBe(78);
+  });
+});
